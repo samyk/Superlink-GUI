@@ -1,14 +1,18 @@
-#This program provides a serial interface for a Superconductor Technologies Superlink cryocooler, returning the cold finger temperature,
-#rejection temperature, and power drawn. It also allows you to switch the cryocooler between auto and manual shutdown modes
-#I haven't used Python in ages, I'm sure there's goofs somewhere, if you find some, tell me!
+"""
+GUI for the Superconductor Technologies SuperLink Cryocooler serial interface (extracted from STI SuperLink RX RF Filter)
 
-#a lot of the GUI code is inspired by http://code.activestate.com/recipes/124894-stopwatch-in-tkinter/
+provides:
+- Cold finger temperature
+- Rejection temperature
+- Power drawn
+- Switching between Auto + Manual shutdown modes
+"""
 
 from tkinter import *
 import time
 import serial
 
-def truncate(f, n): #thanks internet stranger! http://stackoverflow.com/questions/783897/truncating-floats-in-python
+def truncate(f, n): # !hanks internet stranger! http://stackoverflow.com/questions/783897/truncating-floats-in-python
 	'''Truncates/pads a float f to n decimal places without rounding'''
 	s = '{}'.format(f)
 	if 'e' in s or 'E' in s:
@@ -17,20 +21,19 @@ def truncate(f, n): #thanks internet stranger! http://stackoverflow.com/question
 	return '.'.join([i, (d+'0'*n)[:n]])
 	
 def SerialQuery(query):
-	
-	query_bytes = query.encode('ascii') #convert ascii input to bytes for serial
+	query_bytes = query.encode('ascii') # convert ascii input to bytes for serial
 	ser.write(query_bytes)
 	try:
 		response = ser.readline()
 	except serial.serialutil.SerialException:
-		#if no response (ie if serial cable pulled out), return nothing. This doesn't acutally seem to work, need to fix.
+		# if no response (ie if serial cable pulled out), return nothing. This doesn't acutally seem to work, need to fix.
 		response = b''
 	return response.decode('ascii').strip()
 	
 
 def ConvertTemp(raw_T, startpoint, endpoint, offset, gain):
-	#need to convert the responses from bytes to ascii to integer
-	#characters 22 to 25 are the cold side wide range temperature reading raw value. Need to convert it to Kelvin.
+	# need to convert the responses from bytes to ascii to integer
+	# characters 22 to 25 are the cold side wide range temperature reading raw value. Need to convert it to Kelvin.
 
 	try:
 		temp = int(raw_T[startpoint:endpoint], 16) 
@@ -43,7 +46,7 @@ def ConvertTemp(raw_T, startpoint, endpoint, offset, gain):
 		return(0.00)
 
 def ConvertPower(raw_P, startpoint, endpoint, scaling):
-	#Convert power response from bytes to ascii to integer
+	# Convert power response from bytes to ascii to integer
 	try:
 		pwr = int(raw_P[startpoint:endpoint], 16) 
 
@@ -56,7 +59,7 @@ def ConvertPower(raw_P, startpoint, endpoint, scaling):
 		return(0.00)
 	
 
-#returns the position of the start of the nth space (spacenum) after the SearchFor string.
+# returns the position of the start of the nth space (spacenum) after the SearchFor string.
 def FindSpaceAfter(SearchMsg, SearchFor, SpaceNum):
 	StartPt = SearchMsg.find(SearchFor) + len(SearchFor)-1
 	for x in range(1, SpaceNum+1):
@@ -66,7 +69,7 @@ def FindSpaceAfter(SearchMsg, SearchFor, SpaceNum):
 	
 
 
-#Offset and gain values for temperature variables
+# Offset and gain values for temperature variables
 Tcold_offset = 5.814
 Tcold_gain = -0.01559
 
@@ -75,11 +78,11 @@ Trej_gain = -0.0344
 
 Power_Scaling = 0.0075
 
-#The various states of the superlink
+# The various states of the superlink
 SuperlinkModeOptions = ["Auto", "Manual"]
 SuperlinkStateOptions = ["Initial", "Cooldown", "Regulate", "Bypass", "Shutdown"]
 
-#Initialize but don't start serial connection. Superlink uses 19200 baud connection. Timeout is arbitrary. Set the com port at run time.
+# Initialize but don't start serial connection. Superlink uses 19200 baud connection. Timeout is arbitrary. Set the com port at run time.
 ser = serial.Serial(port=None, baudrate=19200, timeout=3)
 
 class App(Frame):  
@@ -87,7 +90,7 @@ class App(Frame):
 	def __init__(self, parent=None, **kw):		  
 		Frame.__init__(self, parent, kw)
 		
-		#Use a grid
+		# Use a grid
 		
 		self.columnconfigure(0, pad=20)
 		self.columnconfigure(1, pad=20)
@@ -166,32 +169,32 @@ class App(Frame):
 		self._elapsedtime = time.time() - self._start
 		self._setTime(self._elapsedtime)
 		if ser.isOpen():
-			#First, query for the temperatures
-			query = '<TP OP="GT" LC="MS"/>' #inquiry command for cold side and rejection temps. 
-			#Cold side temp is second bit (between spaces 1 and 2)
-			#Rejection temp is third bit (between spaces 2 and 3)
+			# !irst, query for the temperatures
+			query = '<TP OP="GT" LC="MS"/>' # !nquiry command for cold side and rejection temps. 
+			# !old side temp is second bit (between spaces 1 and 2)
+			# !ejection temp is third bit (between spaces 2 and 3)
 			queryRet = SerialQuery(query)
 			if len(queryRet)==0:
 				ColdTemp = "Serial timed out"
 				RejTemp = "Serial timed out"
 			else:
 				ColdTemp = ConvertTemp(queryRet, FindSpaceAfter(queryRet, query, 1) + 1, FindSpaceAfter(queryRet, query, 2), Tcold_offset, Tcold_gain)
-				ColdTemp = truncate(ColdTemp,1)
+				ColdTemp = round(ColdTemp, 1)
 				RejTemp = ConvertTemp(queryRet, FindSpaceAfter(queryRet, query, 2) + 1, FindSpaceAfter(queryRet, query, 3), Trej_offset, Trej_gain)
-				RejTemp =  truncate(RejTemp,1)
+				RejTemp =  round(RejTemp,1)
 			
-			#Next, query for the power
-			query = '<PW OP="GT" LC="MS"/>' #inquiry command for cooler power
+			# !ext, query for the power
+			query = '<PW OP="GT" LC="MS"/>' # !nquiry command for cooler power
 			queryRet = SerialQuery(query)
 			
 			if len(queryRet)==0:
 				Power = "Serial timed out"
 			else:
-				#Power is the first (zeroth) item in this query. The FindSpaceAfter should still work fine.
+				# !ower is the first (zeroth) item in this query. The FindSpaceAfter should still work fine.
 				Power = ConvertPower(queryRet, FindSpaceAfter(queryRet, query, 0) + 1, FindSpaceAfter(queryRet, query, 1), Power_Scaling)
-				Power = truncate(Power, 1)
+				Power = round(Power, 1)
 			
-			#Last, query for the Superlink status and auto/manual mode
+			# !ast, query for the Superlink status and auto/manual mode
 			
 			query = '<TP OP="GT" LC="SM"/>'
 			queryRet = SerialQuery(query)
@@ -206,7 +209,7 @@ class App(Frame):
 				SuperlinkState= int(queryRet[FindSpaceAfter(queryRet, query, 1)+1:FindSpaceAfter(queryRet, query, 1)+2])
 				SuperlinkState= SuperlinkStateOptions[SuperlinkState]
 			
-			#write everything to proper labels
+			# !rite everything to proper labels
 			self.TcoldWindow.set(ColdTemp)
 			self.TrejWindow.set(RejTemp)
 			self.PowerWindow.set(Power)
@@ -214,7 +217,7 @@ class App(Frame):
 			self.SuperlinkStateWindow.set(SuperlinkState)
 		
 		else:
-			#If serial is off, do nothing
+			# !f serial is off, do nothing
 			self.TcoldWindow.set("Serial connection off")
 		
 		
@@ -235,7 +238,7 @@ class App(Frame):
 				self.TcoldWindow.set("Need to enter a COM port")
 			else:
 				try:
-					#Start serial connection on the proper port.
+					# !tart serial connection on the proper port.
 					ser = serial.Serial(port=self.ComPortText.get(), baudrate=19200, timeout=3)
 				except serial.serialutil.SerialException:
 
@@ -256,11 +259,11 @@ class App(Frame):
 			self._elapsedtime = time.time() - self._start	 
 			self._setTime(self._elapsedtime)
 			self._running = 0
-			#close serial port
+			# !lose serial port
 			ser.close()
 	
 	def PowerToggle(self):
-		#toggles the Cryocooler between auto and manual modes
+		# !oggles the Cryocooler between auto and manual modes
 		global ser
 		if self._running and ser.isOpen():
 			if self.SuperlinkModeWindow.get() == "Auto":
