@@ -24,6 +24,7 @@ SuperlinkStateOptions = ["Initial", "Cooldown", "Regulate", "Bypass", "Shutdown"
 from tkinter import *
 import time
 import serial
+import signal
 
 def truncate(f, n): # !hanks internet stranger! http://stackoverflow.com/questions/783897/truncating-floats-in-python
 	'''Truncates/pads a float f to n decimal places without rounding'''
@@ -34,12 +35,12 @@ def truncate(f, n): # !hanks internet stranger! http://stackoverflow.com/questio
 	return '.'.join([i, (d+'0'*n)[:n]])
 
 def SerialQuery(query):
-    print("TX> " + query)
+	print("TX> " + query)
 	query_bytes = query.encode('ascii') # convert ascii input to bytes for serial
 	ser.write(query_bytes)
 	try:
 		response = ser.readline()
-        print("rx  " + response)
+		print("rx  " + response)
 	except serial.serialutil.SerialException:
 		# if no response (ie if serial cable pulled out), return nothing. This doesn't acutally seem to work, need to fix.
 		response = b''
@@ -273,12 +274,25 @@ class App(Frame):
 
 			SerialQuery(query)
 
+	def run(self):
+		#self.root = Tk()
+		#app = App(self.root)
+		self.root = root
+		self.root.title("Stupendous Superlink Serial Snooper")
+		app.pack(side=TOP)
+		self.root.mainloop()
+
+root = Tk()
+app = App(root)
+
+def sigint_handler(sig, frame):
+	#global app
+	root.quit()
+	root.update()
+
 def main():
-	root = Tk()
-	sw = App(root)
-	root.title("Stupendous Superlink Serial Snooper")
-	sw.pack(side=TOP)
-	root.mainloop()
+	signal.signal(signal.SIGINT, sigint_handler)
+	app.run()
 
 if __name__ == '__main__':
 	main()
